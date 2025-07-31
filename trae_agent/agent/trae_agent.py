@@ -10,10 +10,11 @@ from typing import override
 
 from ..prompt.agent_prompt import TRAE_AGENT_SYSTEM_PROMPT
 from ..tools import tools_registry
-from ..tools.base import Tool, ToolExecutor, ToolResult
+from ..tools.base import ToolExecutor, ToolResult
 from ..utils.config import Config
 from ..utils.llm_basics import LLMMessage, LLMResponse
 from ..utils.llm_client import LLMClient
+from ..utils.mcp_client import MCPClient
 from .agent_basics import AgentError, AgentExecution
 from .base import Agent
 
@@ -42,7 +43,17 @@ class TraeAgent(Agent):
         self.base_commit: str | None = None
         self.must_patch: str = "false"
         self.patch_path: str | None = None
+        self.mcp_servers: dict | None = config.mcp_servers if config else None
         super().__init__(config=config, llm_client=llm_client)
+
+    @classmethod
+    async def create(
+        cls, config: Config | None = None, llm_client: LLMClient | None = None
+    ) -> "TraeAgent":
+        """Async factory to create and initialize TraeAgent."""
+        self = cls(config=config, llm_client=llm_client)
+        await self.discover_mcp_tools()
+        return self
 
     @classmethod
     @override
@@ -76,6 +87,17 @@ class TraeAgent(Agent):
 
         return recorder.get_trajectory_path()
 
+    async def discover_mcp_tools(self):
+        for mcp_server_name, mcp_server_config in self.mcp_servers.items():
+            mcp_client = MCPClient()
+            try:
+                await mcp_client.connect_and_discover(
+                    mcp_server_name, mcp_server_config, self._tools, self._llm_client.provider.value
+                )
+            except Exception as e:
+                self.cli_console.print(f"Error discovering MCP tools for {mcp_server_name}: {e}")
+                continue
+
     @override
     def new_task(
         self,
@@ -91,9 +113,13 @@ class TraeAgent(Agent):
 
         # Get the model provider from the LLM client
         provider = self._llm_client.provider.value
-        self._tools: list[Tool] = [
+        base_tools = [
             tools_registry[tool_name](model_provider=provider) for tool_name in tool_names
         ]
+        if self._tools and len(self._tools) > 0:
+            self._tools = base_tools + self._tools
+        else:
+            self._tools = base_tools
         self._tool_caller: ToolExecutor = ToolExecutor(self._tools)
 
         self._initial_messages: list[LLMMessage] = []
