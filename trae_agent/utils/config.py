@@ -78,8 +78,7 @@ class Config:
     mcp_servers: dict[str, MCPServerConfig] | None
     lakeview_config: LakeviewConfig | None = None
     enable_lakeview: bool = True
-    allow_mcp_servers: list[str] | None = None
-
+    mcp_servers_list : list[str] | None = None
     # pyright: ignore[reportMissingTypeArgument, reportUnknownParameterType]
     def __init__(self, config_or_config_file: str | dict = "trae_config.json"):
         # Accept either file path or direct config dict

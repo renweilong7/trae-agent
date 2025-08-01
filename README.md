@@ -79,7 +79,7 @@ We recommend to configure Trae Agent using the config file.
             }
          }
       }
-
+   ```
 **Note:** The `trae_config.json` file is ignored by git to prevent accidentally committing your API keys.
 
 You can also set your API keys as environment variables:

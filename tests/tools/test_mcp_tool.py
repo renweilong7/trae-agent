@@ -7,7 +7,7 @@ from trae_agent.tools.mcp_tool import MCPTool
 
 class TestMCPTool(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        # 模拟一个 tool schema
+        # simulate a tool schema
         self.mock_tool = MagicMock()
         self.mock_tool.name = "test_tool"
         self.mock_tool.description = "A test tool"
@@ -19,7 +19,7 @@ class TestMCPTool(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        # 模拟客户端
+        # simulate client side
         self.mock_client = MagicMock()
         self.tool = MCPTool(self.mock_client, self.mock_tool, model_provider="test_provider")
 
