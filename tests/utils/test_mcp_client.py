@@ -49,21 +49,23 @@ class TestMCPClient(unittest.IsolatedAsyncioTestCase):
 
         mock_session.call_tool = AsyncMock()
 
-        trae_tools = []
+        mcp_servers_dict = {}
         await self.client.connect_and_discover(
-            "test_server", config, trae_tools, model_provider="mock_provider"
+            "test_server", config, mcp_servers_dict, model_provider="mock_provider"
         )
-
-        self.assertTrue(all(tool.__class__.__name__ == "MCPTool" for tool in trae_tools))
+        all_tools = []
+        for _, tools in mcp_servers_dict.items():
+            all_tools.extend(tools)
+        self.assertTrue(all(tool.__class__.__name__ == "MCPTool" for tool in all_tools))
 
     async def test_connect_and_discover_invalid_config(self):
         config = MCPServerConfig()
-        trae_tools = []
+        mcp_servers_dict = {}
         with self.assertRaises(ValueError):
             await self.client.connect_and_discover(
-                "invalid_server", config, trae_tools, model_provider=None
+                "invalid_server", config, mcp_servers_dict, model_provider=None
             )
-        self.assertEqual(len(trae_tools), 0)
+        self.assertEqual(len(mcp_servers_dict), 0)
 
     async def test_call_tool(self):
         mock_session = AsyncMock()

@@ -44,6 +44,7 @@ class TraeAgent(Agent):
         self.must_patch: str = "false"
         self.patch_path: str | None = None
         self.mcp_servers: dict | None = config.mcp_servers if config else None
+        self.mcp_tools_dict: dict = {}
         super().__init__(config=config, llm_client=llm_client)
 
     @classmethod
@@ -87,16 +88,23 @@ class TraeAgent(Agent):
 
         return recorder.get_trajectory_path()
 
-    async def discover_mcp_tools(self):
-        for mcp_server_name, mcp_server_config in self.mcp_servers.items():
-            mcp_client = MCPClient()
-            try:
-                await mcp_client.connect_and_discover(
-                    mcp_server_name, mcp_server_config, self._tools, self._llm_client.provider.value
-                )
-            except Exception as e:
-                self.cli_console.print(f"Error discovering MCP tools for {mcp_server_name}: {e}")
-                continue
+    async def discover_mcp_tools(self, mcp_servers_list: list[str] | None = None):
+        if self.mcp_servers:
+            for mcp_server_name, mcp_server_config in self.mcp_servers.items():
+                if mcp_servers_list and mcp_server_name not in mcp_servers_list:
+                    continue
+                mcp_client = MCPClient()
+                try:
+                    await mcp_client.connect_and_discover(
+                        mcp_server_name,
+                        mcp_server_config,
+                        self.mcp_tools_dict,
+                        self._llm_client.provider.value,
+                    )
+                except Exception:
+                    continue
+        else:
+            return
 
     @override
     def new_task(
@@ -113,13 +121,13 @@ class TraeAgent(Agent):
 
         # Get the model provider from the LLM client
         provider = self._llm_client.provider.value
-        base_tools = [
+        self._tools = [
             tools_registry[tool_name](model_provider=provider) for tool_name in tool_names
         ]
-        if self._tools and len(self._tools) > 0:
-            self._tools = base_tools + self._tools
-        else:
-            self._tools = base_tools
+        if self.mcp_tools_dict:
+            for _, mcp_tools in self.mcp_tools_dict.items():
+                # mcp_tools_dict key is mcp_server_name in the future maybe disable some mcp_servers via mcp_server_list
+                self.tools.extend(mcp_tools)
         self._tool_caller: ToolExecutor = ToolExecutor(self._tools)
 
         self._initial_messages: list[LLMMessage] = []

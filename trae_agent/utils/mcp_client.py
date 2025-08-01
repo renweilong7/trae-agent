@@ -5,7 +5,6 @@ from typing import Optional
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from ..tools.base import Tool
 from ..tools.mcp_tool import MCPTool
 from .config import MCPServerConfig
 
@@ -42,7 +41,7 @@ class MCPClient:
         self,
         mcp_server_name: str,
         mcp_server_config: MCPServerConfig,
-        trae_tools: list[Tool],
+        mcp_tools_dict: dict[str, list],
         model_provider,
     ):
         transport = None
@@ -68,15 +67,13 @@ class MCPClient:
             await self.connect_to_server(mcp_server_name, transport)
 
             mcp_tools = await self.list_tools()
-            # stdio_ctx = stdio_client(mcp_server_config)
-            # stdio = await stdio_ctx.__aenter__()
-            # stdio_obj, write = stdio
-            # mcp_session = ClientSession(stdio_obj, write)
+            enable_mcp_tools = []
             for tool in mcp_tools.tools:
                 mcp_tool = MCPTool(self, tool, model_provider)
-                trae_tools.append(mcp_tool)
+                enable_mcp_tools.append(mcp_tool)
+            mcp_tools_dict[mcp_server_name] = enable_mcp_tools
         except Exception as e:
-            print(e)
+            raise e
 
     async def connect_to_server(self, mcp_server_name, transport):
         """Connect to an MCP server
