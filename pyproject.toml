@@ -21,6 +21,7 @@ dependencies = [
     "ruff>=0.12.4",
     "mcp==1.12.2",
     "asyncclick>=8.0.0",
+    "pyyaml>=6.0.2",
 ]
 
 [project.optional-dependencies]
@@ -88,4 +89,9 @@ select = [
     "C4",
     "E4", "E9", "E7", "F",
     "I"
+]
+
+[dependency-groups]
+dev = [
+    "types-pyyaml>=6.0.12.20250516",
 ]

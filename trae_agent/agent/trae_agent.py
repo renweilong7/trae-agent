@@ -8,15 +8,14 @@ import os
 import subprocess
 from typing import override
 
-from ..prompt.agent_prompt import TRAE_AGENT_SYSTEM_PROMPT
-from ..tools import tools_registry
-from ..tools.base import ToolExecutor, ToolResult
-from ..utils.config import Config
-from ..utils.llm_basics import LLMMessage, LLMResponse
-from ..utils.llm_client import LLMClient
-from ..utils.mcp_client import MCPClient
-from .agent_basics import AgentError, AgentExecution
-from .base import Agent
+from trae_agent.agent.agent_basics import AgentError, AgentExecution
+from trae_agent.agent.base import Agent
+from trae_agent.prompt.agent_prompt import TRAE_AGENT_SYSTEM_PROMPT
+from trae_agent.tools import tools_registry
+from trae_agent.tools.base import Tool, ToolExecutor, ToolResult
+from trae_agent.utils.config import MCPServerConfig, TraeAgentConfig
+from trae_agent.utils.llm_clients.llm_basics import LLMMessage, LLMResponse
+from trae_agent.utils.mcp_client import MCPClient
 
 TraeAgentToolNames = [
     "str_replace_based_edit_tool",
@@ -30,7 +29,7 @@ TraeAgentToolNames = [
 class TraeAgent(Agent):
     """Trae Agent specialized for software engineering tasks."""
 
-    def __init__(self, config: Config | None = None, llm_client: LLMClient | None = None):
+    def __init__(self, trae_agent_config: TraeAgentConfig):
         """Initialize TraeAgent.
 
         Args:
@@ -43,34 +42,22 @@ class TraeAgent(Agent):
         self.base_commit: str | None = None
         self.must_patch: str = "false"
         self.patch_path: str | None = None
-        self.mcp_servers: dict | None = config.mcp_servers if config else None
-        self.mcp_tools_dict: dict = {}
-        super().__init__(config=config, llm_client=llm_client)
+        self.mcp_servers_config: dict[str, MCPServerConfig] | None = (
+            trae_agent_config.mcp_servers_config if trae_agent_config.mcp_servers_config else None
+        )
+        self.allow_mcp_servers: list[str] | None = (
+            trae_agent_config.allow_mcp_servers if trae_agent_config.allow_mcp_servers else []
+        )
+        self.mcp_tools: list[Tool] = []
+
+        super().__init__(agent_config=trae_agent_config)
 
     @classmethod
-    async def create(
-        cls, config: Config | None = None, llm_client: LLMClient | None = None
-    ) -> "TraeAgent":
+    async def create(cls, trae_agent_config: TraeAgentConfig) -> "TraeAgent":
         """Async factory to create and initialize TraeAgent."""
-        self = cls(config=config, llm_client=llm_client)
+        self = cls(trae_agent_config=trae_agent_config)
         await self.discover_mcp_tools()
         return self
-
-    @classmethod
-    @override
-    def from_config(cls, config: Config) -> "TraeAgent":
-        """Create a TraeAgent instance from a configuration object.
-
-        This factory method provides the traditional config-based initialization
-        while allowing for future customization of the instantiation process.
-
-        Args:
-            config: Configuration object containing model parameters and other settings.
-
-        Returns:
-            An instance of TraeAgent.
-        """
-        return cls(config=config)
 
     def setup_trajectory_recording(self, trajectory_path: str | None = None) -> str:
         """Set up trajectory recording for this agent.
@@ -88,20 +75,25 @@ class TraeAgent(Agent):
 
         return recorder.get_trajectory_path()
 
-    async def discover_mcp_tools(self, mcp_servers_list: list[str] | None = None):
-        if self.mcp_servers:
-            for mcp_server_name, mcp_server_config in self.mcp_servers.items():
-                if mcp_servers_list and mcp_server_name not in mcp_servers_list:
+    async def discover_mcp_tools(self):
+        if self.mcp_servers_config:
+            for mcp_server_name, mcp_server_config in self.mcp_servers_config.items():
+                if self.allow_mcp_servers is None:
+                    return
+                if mcp_server_name not in self.allow_mcp_servers:
                     continue
                 mcp_client = MCPClient()
                 try:
                     await mcp_client.connect_and_discover(
                         mcp_server_name,
                         mcp_server_config,
-                        self.mcp_tools_dict,
+                        self.mcp_tools,
                         self._llm_client.provider.value,
                     )
                 except Exception:
+                    continue
+                except asyncio.CancelledError:
+                    # If the task is cancelled, we just skip this server
                     continue
         else:
             return
@@ -116,18 +108,17 @@ class TraeAgent(Agent):
         """Create a new task."""
         self._task: str = task
 
-        if tool_names is None:
+        if tool_names is None and len(self._tools) == 0:
             tool_names = TraeAgentToolNames
 
-        # Get the model provider from the LLM client
-        provider = self._llm_client.provider.value
-        self._tools = [
-            tools_registry[tool_name](model_provider=provider) for tool_name in tool_names
-        ]
-        if self.mcp_tools_dict:
-            for _, mcp_tools in self.mcp_tools_dict.items():
-                # mcp_tools_dict key is mcp_server_name in the future maybe disable some mcp_servers via mcp_server_list
-                self.tools.extend(mcp_tools)
+            # Get the model provider from the LLM client
+            provider = self._model_config.model_provider.provider
+            self._tools: list[Tool] = [
+                tools_registry[tool_name](model_provider=provider) for tool_name in tool_names
+            ]
+        if self.mcp_tools:
+            self._tools.extend(self.mcp_tools)
+
         self._tool_caller: ToolExecutor = ToolExecutor(self._tools)
 
         self._initial_messages: list[LLMMessage] = []
@@ -156,7 +147,7 @@ class TraeAgent(Agent):
             self._trajectory_recorder.start_recording(
                 task=task,
                 provider=self._llm_client.provider.value,
-                model=self._model_parameters.model,
+                model=self._model_config.model,
                 max_steps=self._max_steps,
             )
 

@@ -1,6 +1,5 @@
 from contextlib import AsyncExitStack
 from enum import Enum
-from typing import Optional
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -27,7 +26,7 @@ class MCPDiscoveryState(Enum):
 class MCPClient:
     def __init__(self):
         # Initialize session and client objects
-        self.session: Optional[ClientSession] = None
+        self.session: ClientSession | None = None
         self.exit_stack = AsyncExitStack()
         self.mcp_servers_status: dict[str, MCPServerStatus] = {}
 
@@ -41,7 +40,7 @@ class MCPClient:
         self,
         mcp_server_name: str,
         mcp_server_config: MCPServerConfig,
-        mcp_tools_dict: dict[str, list],
+        mcp_tools_container: list,
         model_provider,
     ):
         transport = None
@@ -67,11 +66,9 @@ class MCPClient:
             await self.connect_to_server(mcp_server_name, transport)
 
             mcp_tools = await self.list_tools()
-            enable_mcp_tools = []
             for tool in mcp_tools.tools:
                 mcp_tool = MCPTool(self, tool, model_provider)
-                enable_mcp_tools.append(mcp_tool)
-            mcp_tools_dict[mcp_server_name] = enable_mcp_tools
+                mcp_tools_container.append(mcp_tool)
         except Exception as e:
             raise e
 
