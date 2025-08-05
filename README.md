@@ -19,6 +19,7 @@ For technical details please refer to [our technical report](https://arxiv.org/a
 - 🌊 **Lakeview**: Provides short and concise summarisation for agent steps
 - 🤖 **Multi-LLM Support**: Works with OpenAI, Anthropic, Doubao, Azure, OpenRouter, Ollama and Google Gemini APIs
 - 🛠️ **Rich Tool Ecosystem**: File editing, bash execution, sequential thinking, and more
+- 🔌 **MCP Support**: Seamless integration with the Modular Context Protocol (MCP) for secure and standardized access to external context
 - 🎯 **Interactive Mode**: Conversational interface for iterative development
 - 📊 **Trajectory Recording**: Detailed logging of all agent actions for debugging and analysis
 - ⚙️ **Flexible Configuration**: YAML-based configuration with environment variable support
@@ -67,25 +68,6 @@ We recommend to configure Trae Agent using the config file.
    - Add additional model providers as needed (OpenAI, Google, Azure, etc.)
    - Configure your preferred models and settings
 
-3. **(Optional) Add mcp_servers section to enable agent to call MCP services:**
-   You can configure MCP services by adding an mcp_servers section in trae_config.json.
-   Here's an example configuration for integrating Playwright MCP:
-
-   ``` json
-      {
-         "default_provider": "anthropic",
-         "max_steps": 20,
-         "enable_lakeview": true,
-         "mcp_servers": {
-            "playwright": {
-               "command": "npx",
-               "args": [
-               "@playwright/mcp@0.0.27"
-               ]
-            }
-         }
-      }
-   ```
 **Note:** The `trae_config.yaml` file is ignored by git to prevent accidentally committing your API keys.
 
 **Legacy JSON Configuration:** If you're using the older JSON configuration format, please refer to [docs/legacy_config.md](docs/legacy_config.md) for instructions. We recommend migrating to the new YAML format.
@@ -203,6 +185,8 @@ The YAML configuration file is organized into several main sections:
 - **lakeview**: Configure the summarization feature
 - **model_providers**: Define API credentials and settings for different LLM providers
 - **models**: Define specific model configurations with parameters
+- **allow_mcp_servers**: Configure agent behavior, tools, and models
+- **mcp_servers**: Define configuration for MCP servers
 
 Example YAML configuration:
 
@@ -235,6 +219,15 @@ models:
     top_p: 1
     max_retries: 10
     parallel_tool_calls: true
+
+allow_mcp_servers:
+    - playwright
+
+mcp_servers:
+    playwright:
+        command: npx
+        args:
+            - "@playwright/mcp@latest"
 ```
 
 **WARNING:**
